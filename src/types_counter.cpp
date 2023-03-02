@@ -19,6 +19,5 @@ main(void)
     std::cout << TypeCounter<std::vector<char>>::type_id << std::endl;
     std::cout << TypeCounter<char>::type_id << std::endl;
     std::cout << TypeCounter<uint32_t>::type_id << std::endl;
-
     return 0;
 }

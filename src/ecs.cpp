@@ -180,7 +180,7 @@ main()
     std::function<void(int&)> sys_incr2 = [](int& val)
     {
         std::cout << "number = " << val << std::endl;
-        val +=10;
+        val +=1;
     };
 
     std::function<void(char&,std::string&,int&)> sys_txt = [](char & c, std::string & s, int & n)
