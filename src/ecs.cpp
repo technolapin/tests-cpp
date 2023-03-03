@@ -11,7 +11,7 @@ struct Component
     inline static bool is_component = true;
     inline static std::vector<T> storage = {};
 
-    static void set_index(uint32_t index, T val)
+    inline static void set_index(uint32_t index, T val)
     {
         if (storage.size() <= index)
         {
@@ -33,25 +33,17 @@ struct MaskBuilder<>
     inline static uint64_t mask = 0;
 };
 
-
 template<typename Head, typename... Tails>
 struct MaskBuilder<Head, Tails...>
 {
-    inline static uint64_t mask = (1 << (Component<Head>::type_id)) | MaskBuilder<Tails...>::mask;
+    inline static uint64_t mask = (1 << (Component<std::remove_cvref_t<Head>>::type_id)) | MaskBuilder<Tails...>::mask;
 };
 
-
-
-struct Name
-{
-    std::string name;
-};
 
 struct Entity
 {
-    inline static uint32_t next_index = 0;
 
-    const uint32_t index = next_index++;
+    const uint32_t index;
     uint64_t mask;
 
 
@@ -72,14 +64,16 @@ struct Currier{};
 template<typename Out, typename Head, typename... Tail>
 struct Currier<Out, Head, Tail...>
 {
-    static inline Out
+    static inline Out 
     curry(std::function<Out(Head, Tail...)> foo, uint32_t index)
     {
-        using deref = std::remove_reference<Head>::type;
-        std::function<Out(Tail...)> foonext =  std::bind_front(foo, std::ref(Component<deref>::storage[index]));
+        using deref = std::remove_cvref<Head>::type;
+        std::function<Out(Tail...)> foonext
+            =  std::bind_front(foo, std::ref(Component<deref>::storage[index]));
         return Currier<Out,Tail...>::curry(foonext, index);
     }
 };
+
 template<typename Out>
 struct Currier<Out>
 {
@@ -99,12 +93,22 @@ struct System
 
 struct World
 {
+    inline static uint32_t next_index = 0;
+    std::vector<uint32_t> free_indexes = {};
     std::vector<Entity> entities;
     std::vector<System> systems;
 
     Entity & new_entity()
     {
-        entities.push_back(Entity{});
+        if (free_indexes.size() > 0)
+        {
+            entities.push_back(Entity{free_indexes.back(), 0});
+            free_indexes.pop_back();
+        }
+        else
+        {
+            entities.push_back(Entity{next_index++, 0});
+        }
         return entities.back();
     }
 
@@ -118,7 +122,17 @@ struct World
         };
         systems.push_back(System{fun, MaskBuilder<Comps...>::mask});
     }
+    template<typename...Comp>
+    using Function = void(Comp&...);
     
+    template<typename... Comps>
+    void
+    add_system( Function<Comps&...> f)
+    {
+        add_system(std::function(f));
+        
+    }
+
    
 
 
@@ -127,13 +141,13 @@ struct World
     {
         for (const auto & sys: systems)
         {
-            std::cout << "Mask Sys: " << sys.mask << std::endl;
+            //    std::cout << "Mask Sys: " << sys.mask << std::endl;
             for (const auto & e: entities)
             {
-                std::cout << "  Mask Ent: " << e.mask << std::endl;
+                //  std::cout << "  Mask Ent: " << e.mask << std::endl;
                 if ((e.mask & sys.mask) != sys.mask) continue;
                 
-                std::cout << "    Entity n°" << e.index << std::endl;
+                //std::cout << "    Entity n°" << e.index << std::endl;
                 sys.functor(e.index);
             }
         }
@@ -141,105 +155,79 @@ struct World
     
 };
 
+
+
+struct Pos
+{
+    double x, y, z;
+};
+struct Vel
+{
+    double x,y,z;
+};    
+struct Mass
+{
+    double mass;
+};
+struct Name
+{
+    std::string name;
+};
+
 void
-fooo(uint32_t index)
+sys_pos_update(Pos & pos, Vel & vel)
 {
-    auto & c = Component<char>::storage[index];
-    const auto & s = Component<std::string>::storage[index];
-    const auto & n = Component<int>::storage[index];
-
-    c = s[n%s.size()];
+    pos.x += vel.x;
+    pos.y += vel.y;
+    pos.z += vel.z;
+    if (pos.y < 0)
+    {
+        pos.y = std::abs(pos.y);
+        vel.y = -vel.y*0.99;
+    }
+}
+void
+sys_vel_update(Vel & vel, const Mass & mass)
+{
+    vel.y -= mass.mass*10.;
 }
 
-
-int
-test(int a, int b, int c)
+void
+sys_print(const Pos & pos, const Name & name)
 {
-    return a+b+c;
+    std::cout << "Name: " << name.name << "   Pos: " << pos.x << " " << pos.y << " " << pos.z << std::endl;
 }
-
-
-    
-// void
-// curry()
-// {
-//     [](T a, T b)
-//     {
-//         f(a,b,c)
-//             };
-// }
 
 int
 main()
 {
-
-    std::function<void(uint32_t)> sys_incr = [](uint32_t index)
-    {
-        Component<int>::storage[index]++;
-    };
-    std::function<void(int&)> sys_incr2 = [](int& val)
-    {
-        std::cout << "number = " << val << std::endl;
-        val +=1;
-    };
-
-    std::function<void(char&,std::string&,int&)> sys_txt = [](char & c, std::string & s, int & n)
-    {
-
-        c = s[n%s.size()];
-    };
-
     World world;
-    world.new_entity()
-        .with_component(3)
-        .with_component('a')
-        .with_component(std::string("Texte"));
-    world.new_entity()
-        .with_component('b');
-    world.new_entity()
-        .with_component(33);
-    world.new_entity()
-        .with_component(43)
-        .with_component('w');
-    world.new_entity()
-        .with_component('b')
-        .with_component(5);
+    world.add_system(sys_pos_update);
+    world.add_system(sys_vel_update);
+    world.add_system(sys_print);
 
-//    world.add_system<int>(sys_incr);
-    //   world.add_system<char, std::string, int>(fooo);
+    world.new_entity()
+        .with_component(Name{"Defo"})
+        .with_component(Pos{0,10,0})
+        .with_component(Mass{0.001});
 
+    world.new_entity()
+        .with_component(Name{"Teto"})
+        .with_component(Pos{1,10,0})
+        .with_component(Vel{0,0,0})
+        .with_component(Mass{0.002});
 
+    world.new_entity()
+        .with_component(Name{"Momo"})
+        .with_component(Pos{1,10,0})
+        .with_component(Vel{0,0,0})
+        .with_component(Mass{0.01});
 
-    world.add_system(sys_incr2);
-    world.add_system(sys_txt);
-    for (const auto & i: Component<int>::storage)
-    {
-        std::cout << i << " ";
-    }std::cout << std::endl;
-
-    for (uint32_t i = 0; i < 10; ++i)
+    while(true)
     {
         world.run_systems();
-       for (auto &c : Component<char>::storage)
-        {
-            std::cout << c<< " ";
-        } std::cout << std::endl;
-
     }
 
-    for (const auto & i: Component<int>::storage)
-    {
-        std::cout << i << " ";
-    }std::cout << std::endl;
-    // std::cout << "TEST " << test(1)(1)(1) << std::endl;
-    /*
-    for (uint32_t i = 0; i < 4; ++i)
-    {
-        std::cout << Component<int>::storage[i] << "*3 = "
-                  << Currier<int, &int, &int, &int>::curry(test, i) << std::endl;
-    }
-    */
-    //  std::cout << "TEST " << Component<int&>::type_id << std::endl;
     return 0;
     
 }
