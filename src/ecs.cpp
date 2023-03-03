@@ -157,22 +157,10 @@ struct World
 
 
 
-struct Pos
-{
-    double x, y, z;
-};
-struct Vel
-{
-    double x,y,z;
-};    
-struct Mass
-{
-    double mass;
-};
-struct Name
-{
-    std::string name;
-};
+struct Pos  { double x,y,z;     };
+struct Vel  { double x,y,z;     };    
+struct Mass { double mass;      };
+struct Name { std::string name; };
 
 void
 sys_pos_update(Pos & pos, Vel & vel)
