@@ -64,7 +64,7 @@ struct Currier{};
 template<typename Out, typename Head, typename... Tail>
 struct Currier<Out, Head, Tail...>
 {
-    static inline Out 
+    static inline constexpr Out 
     curry(std::function<Out(Head, Tail...)> foo, uint32_t index)
     {
         using deref = std::remove_cvref<Head>::type;
@@ -77,7 +77,7 @@ struct Currier<Out, Head, Tail...>
 template<typename Out>
 struct Currier<Out>
 {
-    static inline Out
+    static inline constexpr Out
     curry(std::function<Out(void)> foo, [[maybe_unused]] uint32_t index)
     {
         return foo();
@@ -100,18 +100,28 @@ struct World
 
     Entity & new_entity()
     {
+        uint32_t id;
         if (free_indexes.size() > 0)
         {
-            entities.push_back(Entity{free_indexes.back(), 0});
+            id = free_indexes.back();
             free_indexes.pop_back();
+            entities[id].mask = 0;
+            return entities[id];
         }
         else
         {
-            entities.push_back(Entity{next_index++, 0});
+            id = next_index++;
+            entities.push_back(Entity{id, 0});
+            return entities.back();
         }
-        return entities.back();
     }
-
+    void
+    remove_entity(uint32_t id)
+    {
+        free_indexes.push_back(id);
+        entities[id].mask = 0;
+    }
+    
     template<typename... Comps>
     void
     add_system(std::function<void(Comps&...)> f)
@@ -183,7 +193,10 @@ sys_vel_update(Vel & vel, const Mass & mass)
 void
 sys_print(const Pos & pos, const Name & name)
 {
-    std::cout << "Name: " << name.name << "   Pos: " << pos.x << " " << pos.y << " " << pos.z << std::endl;
+    std::cout << "Name: " << name.name << " "
+              << "Pos: " << pos.x << " "
+                         << pos.y << " "
+                         << pos.z << std::endl;
 }
 
 int
