@@ -4,12 +4,13 @@
 #include <stdio.h>
 
 int
-main()
+main(int argc, char ** argv)
 {
     char c;
     while ((c = getchar())!=EOF)
     {
-        putchar(c);
+        fputc(c, stdout);
+        fflush(stdout);
     }
     return 0;
 }
